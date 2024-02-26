@@ -19,8 +19,9 @@ Note that intalling Polybeast or DMLab might not be straightforward depending on
 
 We have a separate main training code file for each environment: DMLab, ProcGen, and Atari.
 See example scripts below.
-`--use_rtrl` flag should be removed to train a feedforward agent,
-or it should be replaced by `--use_quasi_lstm` for the TBPTT-trained eLSTM.
+* `--use_rtrl` flag should be removed to train a feedforward agent,
+* or it should be replaced by `--use_quasi_lstm` for the TBPTT-trained eLSTM
+* or use `--use_quasi_full_lstm` for TBPTT-trained "feLSTM" or `--use_snap` for SnAp-trained "feLSTM"
 
 Logs of our experiments/figures (~3 GB uncompressed) can be downloaded from [here/google-drive](https://drive.google.com/file/d/1d4EhyGzVMEILZdeIMXnE_7-OfeW8yrrR/view?usp=sharing).
 

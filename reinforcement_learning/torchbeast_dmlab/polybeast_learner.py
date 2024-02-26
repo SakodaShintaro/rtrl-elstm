@@ -30,7 +30,7 @@ from torchbeast.core import file_writer
 from torchbeast.core import vtrace
 
 from torchbeast_dmlab.model import Net
-from torchbeast_dmlab.model import QuasiLSTMNet, RTRLQuasiLSTMNet
+from torchbeast_dmlab.model import QuasiLSTMNet, RTRLQuasiLSTMNet, SnapQuasiLSTMNet, QuasiFullLSTMNet
 
 
 # Necessary for multithreading.
@@ -80,6 +80,8 @@ parser.add_argument("--freeze_fc", action="store_true",
                     help="do not update fc after convolutional vision stem.")
 parser.add_argument("--use_rtrl", action="store_true",
                     help="train with RTRL.")
+parser.add_argument("--use_snap", action="store_true",
+                    help="train with Snap.")
 parser.add_argument("--num_actors", default=4, type=int, metavar="N",
                     help="Number of actors.")
 parser.add_argument("--total_steps", default=100000, type=int, metavar="T",
@@ -100,6 +102,8 @@ parser.add_argument("--use_lstm", action="store_true",
                     help="Use LSTM in agent model.")
 parser.add_argument("--use_quasi_lstm", action="store_true",
                     help="Use Quasi LSTM in agent model.")
+parser.add_argument("--use_quasi_full_lstm", action="store_true",
+                    help="Use Quasi full LSTM in agent model.")
 parser.add_argument("--use_delta_rnn", action="store_true",
                     help="Use Delta RNN in agent model.")
 parser.add_argument("--use_delta", action="store_true",
@@ -235,6 +239,7 @@ if args.use_wandb:  # configure wandb.
     config.disable_cuda=args.disable_cuda
     config.use_lstm=args.use_lstm
     config.use_quasi_lstm=args.use_quasi_lstm
+    config.use_quasi_full_lstm=args.use_quasi_full_lstm
     config.entropy_cost=args.entropy_cost
     config.baseline_cost=args.baseline_cost
     config.discounting=args.discounting
@@ -626,6 +631,20 @@ def train(flags):
             freeze_fc=flags.freeze_fc, is_dmlab=True)
         actor_model.to(device=flags.actor_device)
 
+    elif flags.use_quasi_full_lstm:
+        model = QuasiFullLSTMNet(
+            num_actions=flags.num_actions,
+            hidden_size=flags.hidden_size, freeze_conv=flags.freeze_conv,
+            freeze_fc=flags.freeze_fc, is_dmlab=True)
+        logging.info(model)
+        model = model.to(device=flags.learner_device)
+
+        actor_model = QuasiFullLSTMNet(
+            num_actions=flags.num_actions,
+            hidden_size=flags.hidden_size, freeze_conv=flags.freeze_conv,
+            freeze_fc=flags.freeze_fc, is_dmlab=True)
+        actor_model.to(device=flags.actor_device)
+
     elif flags.use_rtrl:
         model = RTRLQuasiLSTMNet(
             num_actions=flags.num_actions,
@@ -635,6 +654,20 @@ def train(flags):
         model = model.to(device=flags.learner_device)
 
         actor_model = RTRLQuasiLSTMNet(
+            num_actions=flags.num_actions,
+            hidden_size=flags.hidden_size, freeze_conv=flags.freeze_conv,
+            freeze_fc=flags.freeze_fc, is_dmlab=True)
+        actor_model.to(device=flags.actor_device)
+
+    elif flags.use_snap:
+        model = SnapQuasiLSTMNet(
+            num_actions=flags.num_actions,
+            hidden_size=flags.hidden_size, freeze_conv=flags.freeze_conv,
+            freeze_fc=flags.freeze_fc, is_dmlab=True)
+        logging.info(model)
+        model = model.to(device=flags.learner_device)
+
+        actor_model = SnapQuasiLSTMNet(
             num_actions=flags.num_actions,
             hidden_size=flags.hidden_size, freeze_conv=flags.freeze_conv,
             freeze_fc=flags.freeze_fc, is_dmlab=True)
@@ -956,15 +989,26 @@ def full_test(flags, plogger, num_episodes=100, num_runs=3, device='cuda'):
             num_actions=flags.num_actions,
             hidden_size=flags.hidden_size, is_dmlab=True)
 
+    elif flags.use_quasi_full_lstm:
+        model = QuasiFullLSTMNet(
+            num_actions=flags.num_actions,
+            hidden_size=flags.hidden_size, is_dmlab=True)
+
     elif flags.use_rtrl:
         model = RTRLQuasiLSTMNet(
             num_actions=flags.num_actions,
             hidden_size=flags.hidden_size, freeze_conv=flags.freeze_conv,
             is_dmlab=True)
 
+    elif flags.use_snap:
+        model = SnapQuasiLSTMNet(
+            num_actions=flags.num_actions,
+            hidden_size=flags.hidden_size, freeze_conv=flags.freeze_conv,
+            is_dmlab=True)
+
     else:
         model = Net(num_actions=flags.num_actions, use_lstm=flags.use_lstm,
-                    is_dmlab=True)
+                    hidden_size=flags.hidden_size, is_dmlab=True)
 
     plogger._logger.info(model)
     plogger._logger.info(f"# params: "
@@ -1053,15 +1097,26 @@ def test(flags, num_episodes=30, num_runs=5, device='cuda'):
             num_actions=flags.num_actions,
             hidden_size=flags.hidden_size, is_dmlab=True)
 
+    elif flags.use_quasi_full_lstm:
+        model = QuasiFullLSTMNet(
+            num_actions=flags.num_actions,
+            hidden_size=flags.hidden_size, is_dmlab=True)
+
     elif flags.use_rtrl:
         model = RTRLQuasiLSTMNet(
             num_actions=flags.num_actions,
             hidden_size=flags.hidden_size, freeze_conv=flags.freeze_conv,
             is_dmlab=True)
 
+    elif flags.use_snap:
+        model = SnapQuasiLSTMNet(
+            num_actions=flags.num_actions,
+            hidden_size=flags.hidden_size, freeze_conv=flags.freeze_conv,
+            is_dmlab=True)
+
     else:
         model = Net(num_actions=flags.num_actions, use_lstm=flags.use_lstm,
-                    is_dmlab=True)
+                    hidden_size=flags.hidden_size, is_dmlab=True)
 
     print(model)
     print(f"# params: "

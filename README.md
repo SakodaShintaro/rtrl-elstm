@@ -6,7 +6,7 @@ This is the official repository containing code for the paper:
 
 ## Contents
 * `diagnostic` directory contains code for the copy task (Sec 4.1)
-* `reinforcement_learning` directory contains code for the RL experiments (Sec. 4.2 and 4.3)
+* `reinforcement_learning` directory contains code for the RL experiments (Sec. 4.2 and 4.3), plus a standalone CarRacing-v3 setup (`torchbeast_carracing`)
 
 Please refer to the readme file in each directory for further instructions.
 Separate license files can be found in each directory.

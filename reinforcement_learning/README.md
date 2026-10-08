@@ -190,6 +190,31 @@ python -m torchbeast_atari.polybeast \
      --savedir ${SAVE_DIR}
 ```
 
+### CarRacing (standalone, no Polybeast)
+`torchbeast_carracing` is a synchronous single-process re-implementation of the RTRL learner (`learn_rtrl`) for `CarRacing-v3`.
+It does not need libtorchbeast/gRPC: the environments of a gymnasium `AsyncVectorEnv` play the role of the actors, and every unroll (`unroll_length` x `num_envs`) is one learner batch.
+Since rollouts use the learner's current parameters, the learner itself carries the RTRL states from one unroll to the next (in Polybeast, they are computed by the actors).
+
+The environment follows the CarRacing setup of vla_streaming_rl (action repeat 4, 1000 decisions per episode, +100 fix for the off-track penalty, truncation after 20 consecutive negative rewards) with the discrete action space (`continuous=False`, 5 actions).
+`--total_steps` counts agent decisions (after action repeat).
+
+```
+uv sync
+
+uv run python -m tests.carracing_rtrl_grad_test  # RTRL vs. BPTT gradient check
+
+uv run python -m torchbeast_carracing.train \
+     --savedir saved_models_carracing \
+     --xpid rtrl_elstm_carracing_seed1 \
+     --seed 1 \
+     --num_envs 16 \
+     --unroll_length 50 \
+     --hidden_size 256 \
+     --total_steps 5_000_000
+```
+Logs are written to `${savedir}/${xpid}/log_episode.tsv` (one line per episode) and `log_train.tsv`.
+CarRacing simulation is the bottleneck (~35 decisions/s per environment).
+
 ## Evaluation
 **The final evalution is automatically carried out at the end of training.**
 NB: `polybeast_learner.py` files typically also contain code for the eval-only mode; please ignore them; they are just copy-pasted from some random environments and not adapted to each environment.

@@ -1,0 +1,22 @@
+[project]
+name = "rtrl-elstm-rl"
+version = "0.1.0"
+description = "R2AC (RTRL-trained eLSTM actor-critic) experiments"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "gymnasium[box2d]==1.2.3",
+    "numpy>=1.26.4",
+    "torch>=2.8,<2.9",
+]
+
+[tool.uv]
+# setup.py in this directory builds libtorchbeast (Polybeast); the uv env does not install it.
+package = false
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }

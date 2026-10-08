@@ -6,6 +6,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "gymnasium[box2d]==1.2.3",
     "numpy>=1.26.4",
+    "opencv-python",
     "torch>=2.8,<2.9",
 ]
 

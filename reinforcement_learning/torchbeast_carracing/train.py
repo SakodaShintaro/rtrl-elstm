@@ -23,6 +23,7 @@ import collections
 import os
 import time
 
+import cv2
 import numpy as np
 import torch
 from torch import nn
@@ -31,6 +32,7 @@ from torch.nn import functional as F
 from torchbeast.core import vtrace
 from torchbeast_carracing.carracing_wrappers import make_vector_env
 from torchbeast_carracing.model import RTRLQuasiLSTMNet
+from torchbeast_carracing.render import render_frame
 
 
 def parse_args():
@@ -53,6 +55,11 @@ def parse_args():
     parser.add_argument("--baseline_cost", type=float, default=0.5)
     parser.add_argument("--discounting", type=float, default=0.99)
     parser.add_argument("--log_every", type=int, default=10, help="Log every this many updates.")
+    parser.add_argument("--render", action=argparse.BooleanOptionalAction, default=True,
+                        help="Show environment 0 in an OpenCV window at every step "
+                             "(--no-render to disable).")
+    parser.add_argument("--render_scale", type=float, default=4.0,
+                        help="Display scale of the 96x96 observation panel.")
     return parser.parse_args()
 
 
@@ -136,13 +143,22 @@ def main():
         frames, rewards, dones = [frame], [reward], [done]
         actions, behavior_logits = [], []
         for _ in range(T):
-            action, logits, rnn_state = model.act(
+            action, logits, value, rnn_state = model.act(
                 frame.unsqueeze(0), reward.unsqueeze(0), done.unsqueeze(0), rnn_state)
             obs, env_reward, terminated, truncated, _ = envs.step(action[0].cpu().numpy())
             env_done = terminated | truncated
 
             episode_return += env_reward
             episode_length += 1
+
+            if args.render:
+                bgr_image = render_frame(
+                    envs.call("render")[0], obs[0], args.render_scale,
+                    action[0, 0].item(), F.softmax(logits[0, 0], dim=-1).tolist(),
+                    value[0, 0].item(), env_reward[0], episode_return[0],
+                    episode_length[0], step + len(actions) * B + 1)
+                cv2.imshow("CarRacing-v3", bgr_image)
+                cv2.waitKey(1)
             for i in np.flatnonzero(env_done):
                 step_i = step + len(actions) * B + i + 1
                 episode_log.write(f"{step_i}\t{episode_return[i]:.2f}\t{episode_length[i]}\n")

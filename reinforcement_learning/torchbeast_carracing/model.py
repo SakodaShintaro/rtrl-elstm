@@ -128,11 +128,11 @@ class RTRLQuasiLSTMNet(nn.Module):
     def act(self, frame, reward, done, rnn_state):
         core_input, _, core_output, _, _, _, rnn_state = self.forward_core(
             frame, reward, done, rnn_state)
-        policy_logits, _ = self.heads(core_input, core_output)
+        policy_logits, baseline = self.heads(core_input, core_output)
         T, B, _ = policy_logits.shape
         action = torch.multinomial(
             F.softmax(policy_logits.view(T * B, -1), dim=1), num_samples=1)
-        return action.view(T, B), policy_logits, rnn_state
+        return action.view(T, B), policy_logits, baseline, rnn_state
 
     # Accumulates the RTRL gradients of the core parameters into their .grad
     # (call core.rtrl_zero_grad() before) and returns the updated RTRL state.

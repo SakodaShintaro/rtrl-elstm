@@ -66,7 +66,8 @@ class TransposeObs(gym.ObservationWrapper):
 
 
 def make_env():
-    env = gym.make("CarRacing-v3", continuous=False)
+    # rgb_array only renders when env.render() is called (for the --render window).
+    env = gym.make("CarRacing-v3", continuous=False, render_mode="rgb_array")
     env = env.env  # Unwrap the original TimeLimit wrapper (counted in frames)
     env = gym.wrappers.TimeLimit(env, max_episode_steps=1000 * REPEAT)
     env = CarRacingRewardFixWrapper(env)

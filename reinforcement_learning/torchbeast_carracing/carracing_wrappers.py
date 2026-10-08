@@ -1,12 +1,24 @@
 # CarRacing-v3 environment, wrapped to match the CarRacing setup of
 # vla_streaming_rl (action repeat 4, 1000 decisions per episode, off-track
 # penalty fix, early stop on a long run of negative rewards), except that
-# the action space is the discrete one (continuous=False) used by IMPALA.
+# the action space is discrete (5 actions) as in IMPALA.
 
 import gymnasium as gym
 import numpy as np
 
 REPEAT = 4
+
+# (steer, gas, brake) of each discrete action, for the continuous CarRacing.
+# Same as the built-in discrete mode (continuous=False; gymnasium car_racing.py)
+# except for the brake, 0.8 there. Continuous steer is negated by the env:
+# positive = right.
+DISCRETE_ACTIONS = [
+    [0.0, 0.0, 0.0],  # 0: noop
+    [0.6, 0.0, 0.0],  # 1: right
+    [-0.6, 0.0, 0.0],  # 2: left
+    [0.0, 0.2, 0.0],  # 3: gas
+    [0.0, 0.0, 0.01],  # 4: brake
+]
 
 
 class CarRacingRewardFixWrapper(gym.Wrapper):
@@ -17,6 +29,18 @@ class CarRacingRewardFixWrapper(gym.Wrapper):
         if reward < -30:
             reward += 100
         return obs, reward, terminated, truncated, info
+
+
+class DiscreteActionWrapper(gym.ActionWrapper):
+    """Discrete action index -> continuous (steer, gas, brake)."""
+
+    def __init__(self, env, actions):
+        super().__init__(env)
+        self.actions = np.array(actions, dtype=np.float32)
+        self.action_space = gym.spaces.Discrete(len(actions))
+
+    def action(self, action):
+        return self.actions[action]
 
 
 class ActionRepeatWrapper(gym.Wrapper):
@@ -67,10 +91,11 @@ class TransposeObs(gym.ObservationWrapper):
 
 def make_env():
     # rgb_array only renders when env.render() is called (for the --render window).
-    env = gym.make("CarRacing-v3", continuous=False, render_mode="rgb_array")
+    env = gym.make("CarRacing-v3", continuous=True, render_mode="rgb_array")
     env = env.env  # Unwrap the original TimeLimit wrapper (counted in frames)
     env = gym.wrappers.TimeLimit(env, max_episode_steps=1000 * REPEAT)
     env = CarRacingRewardFixWrapper(env)
+    env = DiscreteActionWrapper(env, DISCRETE_ACTIONS)
     env = ActionRepeatWrapper(env, REPEAT)
     env = AverageRewardEarlyStopWrapper(env, 20)
     env = TransposeObs(env)

@@ -97,9 +97,10 @@ def main():
     with open(os.path.join(xpdir, "args.txt"), "w") as f:
         f.write(" ".join(f"--{k} {v}" for k, v in vars(args).items()) + "\n")
     episode_log = open(os.path.join(xpdir, "log_episode.tsv"), "w")
-    episode_log.write("step\tepisode_return\tepisode_length\n")
+    episode_log.write("step\tepisode_return\tepisode_length\tend\n")
     train_log = open(os.path.join(xpdir, "log_train.tsv"), "w")
-    train_log.write("step\tsps\tmean_return_last20\ttotal_loss\tpg_loss\tbaseline_loss\tentropy_loss\n")
+    train_log.write("step\tsps\tmean_return_last20\ttotal_loss\tpg_loss\tbaseline_loss\tentropy_loss\t"
+                    "entropy\n")
 
     B, T = args.num_envs, args.unroll_length
     envs = make_vector_env(B)
@@ -141,12 +142,29 @@ def main():
         # 1. Rollout (T steps). The last frame of this unroll is the first of the next one.
         init_rnn_state = rnn_state
         frames, rewards, dones = [frame], [reward], [done]
-        actions, behavior_logits = [], []
+        actions, behavior_logits, truncation_values = [], [], []
         for _ in range(T):
             action, logits, value, rnn_state = model.act(
                 frame.unsqueeze(0), reward.unsqueeze(0), done.unsqueeze(0), rnn_state)
-            obs, env_reward, terminated, truncated, _ = envs.step(action[0].cpu().numpy())
+            obs, env_reward, terminated, truncated, info = envs.step(action[0].cpu().numpy())
             env_done = terminated | truncated
+
+            # A truncated episode (time limit / early stop) has not reached a
+            # terminal state: bootstrap from the value of its last observation
+            # (returned in info["final_obs"], since `obs` is already the reset one),
+            # computed with the RNN state that has just processed this step.
+            # (Unlike Torchbeast, which treats any episode end as terminal.)
+            truncation_value = torch.zeros(B, device=device)
+            bootstrap = truncated & ~terminated
+            if bootstrap.any():
+                idx = np.flatnonzero(bootstrap)
+                final_obs = torch.from_numpy(np.stack(info["final_obs"][idx])).to(device)
+                final_reward = torch.from_numpy(env_reward[idx]).float().to(device)
+                not_reset = torch.zeros(1, len(idx), dtype=torch.bool, device=device)
+                _, _, final_value, _ = model.act(
+                    final_obs.unsqueeze(0), final_reward.unsqueeze(0), not_reset,
+                    rnn_state[:, idx])
+                truncation_value[idx] = final_value[0]
 
             episode_return += env_reward
             episode_length += 1
@@ -161,7 +179,8 @@ def main():
                 cv2.waitKey(1)
             for i in np.flatnonzero(env_done):
                 step_i = step + len(actions) * B + i + 1
-                episode_log.write(f"{step_i}\t{episode_return[i]:.2f}\t{episode_length[i]}\n")
+                end = "terminated" if terminated[i] else "truncated"
+                episode_log.write(f"{step_i}\t{episode_return[i]:.2f}\t{episode_length[i]}\t{end}\n")
                 recent_returns.append(episode_return[i])
             episode_return[env_done] = 0.0
             episode_length[env_done] = 0
@@ -174,6 +193,7 @@ def main():
             dones.append(done)
             actions.append(action[0])
             behavior_logits.append(logits[0])
+            truncation_values.append(truncation_value)
         episode_log.flush()
         step += T * B
 
@@ -182,6 +202,7 @@ def main():
         dones = torch.stack(dones)  # (T + 1, B)
         actions = torch.stack(actions)  # (T, B)
         behavior_logits = torch.stack(behavior_logits)  # (T, B, A)
+        truncation_values = torch.stack(truncation_values)  # (T, B)
 
         # 2. Learner forward over the T + 1 frames, from the state before frame 0.
         core_input, notdone, core_output, rnn_tm1, z_outs, f_outs, _ = model.forward_core(
@@ -192,8 +213,11 @@ def main():
         # Take final value function slice for bootstrapping.
         bootstrap_value = baseline[-1]
 
+        # Any episode end cuts the trace (discount 0); for truncations, the
+        # value of the last observation is added to the reward instead, so that
+        # the target is r + gamma * V(final_obs), as if the episode continued.
         discounts = (~dones[1:]).float() * args.discounting
-        clipped_rewards = torch.clamp(rewards[1:], -1, 1)
+        clipped_rewards = torch.clamp(rewards[1:], -1, 1) + args.discounting * truncation_values
 
         vtrace_returns = vtrace.from_logits(
             behavior_policy_logits=behavior_logits,
@@ -232,14 +256,18 @@ def main():
         if num_updates % args.log_every == 0:
             sps = step / (time.time() - start_time)
             mean_return = np.mean(recent_returns) if recent_returns else float("nan")
+            # mean policy entropy per step [nat] (max: ln 5 = 1.609)
+            entropy = -entropy_loss.item() / (args.entropy_cost * T * B)
             train_log.write(
                 f"{step}\t{sps:.1f}\t{mean_return:.2f}\t{total_loss.item():.4f}\t"
-                f"{pg_loss.item():.4f}\t{baseline_loss.item():.4f}\t{entropy_loss.item():.4f}\n")
+                f"{pg_loss.item():.4f}\t{baseline_loss.item():.4f}\t{entropy_loss.item():.4f}\t"
+                f"{entropy:.4f}\n")
             train_log.flush()
             print(
                 f"step {step:>9d} | sps {sps:6.1f} | return(last20) {mean_return:8.2f} | "
                 f"loss {total_loss.item():9.4f} | pg {pg_loss.item():9.4f} | "
-                f"baseline {baseline_loss.item():9.4f} | entropy {entropy_loss.item():8.4f}",
+                f"baseline {baseline_loss.item():9.4f} | entropy_loss {entropy_loss.item():8.4f} | "
+                f"entropy {entropy:.3f}",
                 flush=True)
             torch.save({"model_state_dict": model.state_dict(),
                         "optimizer_state_dict": optimizer.state_dict(),

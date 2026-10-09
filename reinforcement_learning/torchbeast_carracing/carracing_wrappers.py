@@ -9,15 +9,14 @@ import numpy as np
 REPEAT = 4
 
 # (steer, gas, brake) of each discrete action, for the continuous CarRacing.
-# Same as the built-in discrete mode (continuous=False; gymnasium car_racing.py)
-# except for the brake, 0.8 there. Continuous steer is negated by the env:
-# positive = right.
+# Same as the built-in discrete mode (continuous=False; gymnasium car_racing.py).
+# Continuous steer is negated by the env: positive = right.
 DISCRETE_ACTIONS = [
     [0.0, 0.0, 0.0],  # 0: noop
     [0.6, 0.0, 0.0],  # 1: right
     [-0.6, 0.0, 0.0],  # 2: left
     [0.0, 0.2, 0.0],  # 3: gas
-    [0.0, 0.0, 0.01],  # 4: brake
+    [0.0, 0.0, 0.8],  # 4: brake
 ]
 
 

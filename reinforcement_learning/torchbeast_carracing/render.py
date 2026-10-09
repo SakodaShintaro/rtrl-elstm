@@ -50,6 +50,7 @@ def render_frame(env_image, obs, scale, action, probs, value, reward, episode_re
     obs_viz = cv2.resize(obs_viz, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_NEAREST)
     rows = [("action", ACTION_NAMES[action])]
     rows += [(f"  p({name})", f"{p:.3f}") for name, p in zip(ACTION_NAMES, probs)]
+    rows += [("entropy", f"{-sum(p * np.log(max(p, 1e-12)) for p in probs):.3f}")]
     rows += [
         ("value", f"{value:+.3f}"),
         ("reward", f"{reward:+.3f}"),

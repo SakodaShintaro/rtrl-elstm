@@ -38,7 +38,8 @@ from torchbeast_carracing.render import render_frame
 def parse_args():
     parser = argparse.ArgumentParser(description="R2AC on CarRacing-v3")
     parser.add_argument("--savedir", type=str, required=True)
-    parser.add_argument("--xpid", type=str, required=True)
+    parser.add_argument("--xpid", type=str, required=True,
+                        help="Experiment name; saved under ${savedir}/${YYYYmmdd_HHMMSS}_${xpid}.")
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--num_envs", type=int, default=16,
                         help="Number of parallel environments (= learner batch size).")
@@ -92,8 +93,10 @@ def main():
     assert torch.cuda.is_available()
     device = torch.device("cuda")
 
-    xpdir = os.path.join(os.path.expanduser(args.savedir), args.xpid)
-    os.makedirs(xpdir, exist_ok=True)
+    xpdir = os.path.join(
+        os.path.expanduser(args.savedir), f"{time.strftime('%Y%m%d_%H%M%S')}_{args.xpid}")
+    os.makedirs(xpdir, exist_ok=False)
+    print(f"Saving to {xpdir}", flush=True)
     with open(os.path.join(xpdir, "args.txt"), "w") as f:
         f.write(" ".join(f"--{k} {v}" for k, v in vars(args).items()) + "\n")
     episode_log = open(os.path.join(xpdir, "log_episode.tsv"), "w")
